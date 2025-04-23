@@ -24,15 +24,15 @@ process fastsurfer_seg {
   output:
     path("${id}_output")
 
-  script:
-  """
-  echo "Processing subject $id with file $t1"
-  /fastsurfer/run_fastsurfer.sh \\
-    --fs_license ${params.license} \\
-    --t1 $t1 \\
-    --sid $id \\
-    --sd ${id}_output \\
-    --seg_only \\
-    --parallel
-  """
+  shell:
+    '''
+    echo "Processing subject $id with file $t1"
+    /fastsurfer/run_fastsurfer.sh \
+      --fs_license ${params.license} \
+      --t1 $t1 \
+      --sid $id \
+      --sd ${id}_output \
+      --seg_only \
+      --parallel
+    '''
 }
