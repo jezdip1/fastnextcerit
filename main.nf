@@ -5,33 +5,35 @@ workflow {
       .fromPath("${params.input_dir}/*.nii")
       .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
       .map { file ->
-          def id = file.baseName.replaceFirst(/\.nii$/, '')
-          println "Found file: $file  →  id=$id"
-          tuple(file, id)
+         def id = file.baseName.replaceFirst(/\.nii$/, '')
+         tuple(file, id)
       }
-      .set { scans }
+      .set { t1_scans }
 
-    fastsurfer_seg(scans)
+    fastsurfer_seg(t1_scans)
 }
 
 process fastsurfer_seg {
-    tag "$id"
+    tag       "$id"
+    label     'gpujob'
+    container 'deepmi/fastsurfer:latest'
 
     input:
       tuple path(t1), val(id)
 
     output:
-      path("${id}_output")
+      path "${id}_output"
 
-    shell:
-      """
-      echo "Processing subject \$id"
-      /fastsurfer/run_fastsurfer.sh \\
-        --fs_license ${params.license} \\
-        --t1 \$t1 \\
-        --sid \$id \\
-        --sd ${id}_output \\
-        --seg_only \\
-        --parallel
-      """
+    // ZDE je ten klíčový rozdíl – používáme `script:` blok, ne `shell:`
+    script:
+    """
+    echo "Processing subject \$id with file \$t1"
+    /fastsurfer/run_fastsurfer.sh \\
+      --fs_license ${params.license} \\
+      --t1 \$t1 \\
+      --sid \$id \\
+      --sd ${id}_output \\
+      --seg_only \\
+      --parallel
+    """
 }
