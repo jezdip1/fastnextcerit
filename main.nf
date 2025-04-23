@@ -1,49 +1,45 @@
 nextflow.enable.dsl = 2
 
-
 workflow {
 
-    Channel
-        // vezmeme všechna *.nii v zadané složce
-        .fromPath("${params.input_dir}/*.nii")
-        .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+  Channel
+      .fromPath("${params.input_dir}/*.nii")
+      .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+      .map { file -> tuple(file, file.baseName.replaceFirst(/\.nii$/, '')) }
+      .set { scans }
 
-        // vytvoříme tuple (soubor, subjekt-ID)
-        .map { f ->
-            def id = f.getBaseName().replaceFirst(/\.nii$/, '')
-            println "Found file: ${f}  →  id=${id}"
-            tuple(f, id)
-        }
-        .set { t1_scans }
-
-    fastsurfer_seg(t1_scans)      // spustí proces pro každý tuple
+  fastsurfer_seg(scans)
 }
-
 
 process fastsurfer_seg {
 
-    tag       "$id"
-    container 'jezdip1/fastsurfer-cerit:latest'   // náš „opravný“ image
+  label 'gpu'                   // zapne blok s GPU zdroji
 
-    cpus      2
-    memory    '12 GB'
+  tag  "$id"
 
-    input:
-        tuple path(t1), val(id)
+  input:
+    tuple path(t1), val(id)
 
-    output:
-        path "${id}_output"
+  output:
+    path "${params.subjects_dir}/${id}"
 
-    shell:
-    """
-    T1=${params.input_dir}/${id}.nii
-    echo "Processing subject $id  →  \$T1"
+  /*
+   *  Pozn.:  run_fastsurfer.sh MUSÍ dostat absolutní --sd
+   *          a stejně tak absolutní --t1, pak už nezáleží
+   *          kde uvnitř skriptu zrovna je.
+   */
+  shell:
+  """
+  T1=${params.input_dir}/${id}.nii
+  SD=${params.subjects_dir}
 
-    /fastsurfer/run_fastsurfer.sh \\
-        --fs_license ${params.license} \\
-        --t1 \$T1 \\
-        --sid $id \\
-        --sd ${id}_output \\
-        --seg_only
-    """
+  echo "Processing \$T1  →  \$SD"
+
+  /fastsurfer/run_fastsurfer.sh \
+       --fs_license ${params.license} \
+       --t1 \$T1 \
+       --sid $id \
+       --sd \$SD \
+       --seg_only
+  """
 }
