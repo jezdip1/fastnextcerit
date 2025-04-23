@@ -3,9 +3,10 @@ nextflow.enable.dsl=2
 workflow {
   Channel
     .fromPath("${params.input_dir}/*.nii")
+    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
     .map { file ->
-      println "Found file: ${file.toAbsolutePath()}"
       def id = file.getBaseName().replaceFirst(/\.nii$/, '')
+      println "Found file: $file with id: $id"
       tuple(file, id)
     }
     .set { t1_scans }
