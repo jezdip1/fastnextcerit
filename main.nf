@@ -1,39 +1,39 @@
 nextflow.enable.dsl = 2
 
 workflow {
-    Channel
-      .fromPath("${params.input_dir}/*.nii")
-      .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-      .map { file ->
-         def id = file.baseName.replaceFirst(/\.nii$/, '')
-         tuple(file, id)
-      }
-      .set { t1_scans }
+  Channel
+    .fromPath("${params.input_dir}/*.nii")
+    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+    .map { file ->
+      def id = file.baseName.replaceFirst(/\.nii$/, '')
+      println "Found file: $file  →  id=$id"
+      tuple(file, id)
+    }
+    .set { t1_scans }
 
-    fastsurfer_seg(t1_scans)
+  fastsurfer_seg(t1_scans)
 }
 
 process fastsurfer_seg {
-    tag       "$id"
-    label     'gpujob'
-    container 'deepmi/fastsurfer:latest'
+  tag       "$id"
+  label     'gpujob'
+  container 'deepmi/fastsurfer:latest'
 
-    input:
-      tuple path(t1), val(id)
+  input:
+    tuple path(t1), val(id)
 
-    output:
-      path "${id}_output"
+  output:
+    path "${id}_output"
 
-    // ZDE je ten klíčový rozdíl – používáme `script:` blok, ne `shell:`
-    script:
-    """
-    echo "Processing subject \$id with file \$t1"
-    /fastsurfer/run_fastsurfer.sh \\
-      --fs_license ${params.license} \\
-      --t1 \$t1 \\
-      --sid \$id \\
-      --sd ${id}_output \\
-      --seg_only \\
-      --parallel
-    """
+  script:
+  """
+  echo "Processing subject \$id with file \$t1"
+  /fastsurfer/run_fastsurfer.sh \\
+    --fs_license ${params.license} \\
+    --t1 \$t1 \\
+    --sid \$id \\
+    --sd ${id}_output \\
+    --seg_only \\
+    --parallel
+  """
 }
