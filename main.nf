@@ -27,7 +27,7 @@ process fastsurfer_seg {
   script:
   """
   echo "Processing subject $id with file $t1"
-  run_fastsurfer.sh \\
+  /fastsurfer/run_fastsurfer.sh \\
     --fs_license ${params.license} \\
     --t1 $t1 \\
     --sid $id \\
