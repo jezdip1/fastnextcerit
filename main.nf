@@ -16,7 +16,8 @@ workflow {
 
 process fastsurfer_seg {
   tag "$id"
-  label 'gpujob'
+
+  container = 'deepmi/fastsurfer:latest'
 
   input:
     tuple path(t1), val(id)
@@ -24,15 +25,15 @@ process fastsurfer_seg {
   output:
     path("${id}_output")
 
-  shell:
-    '''
-    echo "Processing subject $id with file $t1"
-    /fastsurfer/run_fastsurfer.sh \
-      --fs_license ${params.license} \
-      --t1 $t1 \
-      --sid $id \
-      --sd ${id}_output \
-      --seg_only \
-      --parallel
-    '''
+  script:
+  """
+  echo "Processing subject $id with file $t1"
+  /fastsurfer/run_fastsurfer.sh \\
+    --fs_license ${params.license} \\
+    --t1 $t1 \\
+    --sid $id \\
+    --sd ${id}_output \\
+    --seg_only \\
+    --parallel
+  """
 }
