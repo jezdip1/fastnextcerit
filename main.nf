@@ -3,8 +3,10 @@ nextflow.enable.dsl=2
 workflow {
   Channel
     .fromPath("${params.input_dir}/*.nii")
+    .ifEmpty { error "❌ No .nii files found in: ${params.input_dir}" }
     .map { file ->
       def id = file.getBaseName().replaceFirst(/\.nii$/, '')
+      println "✅ Found file: $file"
       tuple(file, id)
     }
     .set { t1_scans }
@@ -24,6 +26,7 @@ process fastsurfer_seg {
 
   script:
   """
+  echo 'Running fastsurfer for $id'
   run_fastsurfer.sh \\
     --fs_license ${params.license} \\
     --t1 $t1 \\
@@ -33,3 +36,4 @@ process fastsurfer_seg {
     --parallel
   """
 }
+
