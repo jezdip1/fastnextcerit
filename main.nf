@@ -5,8 +5,8 @@ workflow {
     .fromPath("${params.input_dir}/*.nii")
     .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
     .map { file ->
-      def id = file.baseName
-      println "Found file $file → id=$id"
+      def id = file.getBaseName().replaceFirst(/\.nii$/, '')
+      println "Found file: $file → id=$id"
       tuple(file, id)
     }
     .set { t1_scans }
@@ -15,26 +15,24 @@ workflow {
 }
 
 process fastsurfer_seg {
-  tag   "${id}"
   label 'gpujob'
-
-  // přímo Docker Hub image
-  container 'jezdip1/fastsurfer-cerit:latest'
+  tag   { id }
 
   input:
     tuple path(t1), val(id)
 
   output:
-    path("${id}_output")
+    path "${id}_output"
 
-  exec:
-    """
-    /fastsurfer/run_fastsurfer.sh \
-      --fs_license ${params.license} \
-      --t1 $t1 \
-      --sid $id \
-      --sd ${id}_output \
-      --seg_only \
-      --parallel
-    """
+  script:
+  """
+  echo "Processing subject $id with file $t1"
+  /fastsurfer/run_fastsurfer.sh \\
+    --fs_license ${params.license} \\
+    --t1 $t1 \\
+    --sid $id \\
+    --sd ${id}_output \\
+    --seg_only \\
+    --parallel
+  """
 }
