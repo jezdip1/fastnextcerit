@@ -1,57 +1,37 @@
 nextflow.enable.dsl=2
 
-params {
-  input_dir = '/mnt/data/input'
-  license   = '/mnt/data/license.txt'
-  out_dir   = '/mnt/data/subjects'
-}
-
 workflow {
-  Channel
-    .fromPath("${params.input_dir}/*.nii")
-    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-    .map { file ->
-      // id = baseName bez přípony
-      def id = file.baseName
-      println "Found file: $file → id=$id"
-      tuple( file, id )
-    }
-    .set { t1_scans }
+    Channel
+        .fromPath( params.input_dir + '/*.nii' )
+        .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+        .map { f -> tuple(f, f.baseName) }
+        .set { scans }
 
-  fastsurfer_seg(t1_scans)
+    fastsurfer_seg(scans)
 }
 
 process fastsurfer_seg {
-  tag "$id"
-  label 'gpujob'
-  container 'jezdip1/fastsurfer-cerit:latest'
+    container 'jezdip1/fastsurfer-cerit:latest'
+    executor  'k8s'
+    cpus      1
+    memory    '12 GB'
 
-  input:
+    input:
     tuple path(t1), val(id)
 
-  output:
-    // uložím celý adresář subjects/<id>
-    path "${params.out_dir}/${id}", emit: subject
+    output:
+    path "${params.output_dir}/${id}"
 
-  script:
-    // absolutní cesta k T1
-    def T1 = t1.toAbsolutePath()
-    // absolutní cesta k výstupnímu adresáři pro tento subjekt
-    def SD = "${params.out_dir}/${id}"
-
+    script:
     """
-    echo "Processing subject $id"
-    echo "  T1 = \$T1"
-    echo "  SD = \$SD"
-
-    mkdir -p \$SD
+    T1=\$(realpath "${t1}")
+    SD=${params.output_dir}
 
     /fastsurfer/run_fastsurfer.sh \\
       --fs_license ${params.license} \\
       --t1 "\$T1" \\
-      --sid "$id" \\
+      --sid "${id}" \\
       --sd "\$SD" \\
-      --seg_only \\
-      --parallel
+      --seg_only
     """
 }
