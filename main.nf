@@ -1,45 +1,52 @@
 nextflow.enable.dsl = 2
 
+/*
+ * ░░ WORKFLOW ░░
+ */
 workflow {
-
     Channel
-      .fromPath( "${params.input_dir}/*.nii" )
-      .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-      .map    { file -> tuple( file, file.baseName.replaceFirst(/\.nii$/, '') ) }
-      .set    { t1_scans }
+        .fromPath("${params.input_dir}/*.nii")
+        .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+        .map { file -> tuple(file, file.baseName.replaceFirst(/\.nii$/, '')) }
+        .set { t1_scans }
 
-    fastsurfer_seg( t1_scans )
+    fastsurfer_seg(t1_scans)
 }
 
-/* ---------------- PROCESS --------------------------- */
+/*
+ * ░░ PROCESS ░░
+ */
 process fastsurfer_seg {
 
-    tag       "$id"
-    container 'jezdip1/fastsurfer-cerit:latest'
+    label 'gpujob'
+    tag   "$id"
 
     input:
-    tuple path(t1), val(id)
-
-    output:
-    path("${id}_output")
+        tuple path(t1), val(id)
 
     /*
-     *  --- Skript (běží uvnitř kontejneru) --------------------
-     *  1) absolutní cesta k T1                               
-     *  2) adresář subjektů =  /mnt/data/subjects             
+     * Po skončení vytvoříme prázdný soubor `${id}.done`, aby Nextflow
+     * nemusel kopírovat celý výstupní adresář.
      */
-    shell:
-    """
-    T1=\$(realpath "$t1")
-    SD=${params.out_dir}
+    output:
+        path("${id}.done")
 
-    echo "Processing \$T1 → \$SD"
+    /*
+     * Spouštěcí skript
+     */
+    shell: '''
+        T1=${t1.toAbsolutePath()}
+        SD=${params.out_dir}
 
-    /fastsurfer/run_fastsurfer.sh \\
-        --fs_license ${params.license} \\
-        --t1 "\$T1" \\
-        --sid ${id} \\
-        --sd "\$SD" \\
-        --seg_only
-    """
+        echo "Processing $T1  →  $SD"
+
+        /fastsurfer/run_fastsurfer.sh \
+            --fs_license ${params.license} \
+            --t1 "$T1" \
+            --sid ${id} \
+            --sd "$SD" \
+            --seg_only
+
+        touch ${id}.done
+    '''
 }
