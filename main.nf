@@ -1,14 +1,15 @@
 nextflow.enable.dsl = 2
 
+/*
+ *  Konstanty k cestám – nic nepřepisovat v procesu
+ */
 workflow {
-
     Channel
         .fromPath("${params.input_dir}/*.nii")
-        .ifEmpty { error "V ${params.input_dir} nejsou žádné *.nii" }
+        .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
         .map { file ->
             def id = file.baseName.replaceFirst(/\.nii$/, '')
-            println "Found file: $file → id=$id"
-            tuple(file, id)
+            tuple( file, id )
         }
         .set { t1_scans }
 
@@ -17,31 +18,29 @@ workflow {
 
 process fastsurfer_seg {
 
-    label 'gpujob'               // → spadne do GPU sekce z configu
-
     tag "$id"
+    publishDir "${params.out_dir}", mode: 'copy'
+    container 'jezdip1/fastsurfer-cerit:latest'
+    errorStrategy 'retry'; maxRetries 1
 
     input:
         tuple path(t1), val(id)
 
-    /*
-     * FastSurfer zapíše subject directory **uvnitř sandboxu**
-     * (= relativní cesta). Po skončení úlohy ho publishDir přesune
-     * do params.out_dir na stejném PVC.
-     */
     output:
-        path("${id}_output")
-
-    publishDir "${params.out_dir}", mode: 'copy', overwrite: true
+        path("${id}"), emit: subjects      // složka /subjects/<id>
 
     script:
     """
-    echo "Processing subject $id  (T1 = $t1)"
+    T1=${t1.toAbsolutePath()}
+    SD=${params.out_dir}                  # např. /mnt/data/subjects
+
+    echo "Processing \$T1  →  \$SD"
+
     /fastsurfer/run_fastsurfer.sh \\
         --fs_license ${params.license} \\
-        --t1 \$PWD/$t1 \\
-        --sid $id \\
-        --sd ${id}_output \\
+        --t1 \$T1 \\
+        --sid ${id} \\
+        --sd \$SD \\
         --seg_only
     """
 }
