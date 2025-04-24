@@ -27,12 +27,17 @@ process fastsurfer_seg {
         tuple path(t1), val(id)
 
     output:
-        path("${id}"), emit: subjects      // složka /subjects/<id>
+        path("${id}"), emit: subjects
+
+    /*
+     * ---- klíčová část: před skript si připravím string s absolutní cestou
+     */
+    def absT1 = t1.toAbsolutePath().toString()
 
     script:
     """
-    T1=${t1.toAbsolutePath()}
-    SD=${params.out_dir}                  # např. /mnt/data/subjects
+    T1=${absT1}
+    SD=${params.out_dir}
 
     echo "Processing \$T1  →  \$SD"
 
