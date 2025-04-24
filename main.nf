@@ -1,52 +1,57 @@
-nextflow.enable.dsl = 2
+nextflow.enable.dsl=2
 
-/*
- * ░░ WORKFLOW ░░
- */
-workflow {
-    Channel
-        .fromPath("${params.input_dir}/*.nii")
-        .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-        .map { file -> tuple(file, file.baseName.replaceFirst(/\.nii$/, '')) }
-        .set { t1_scans }
-
-    fastsurfer_seg(t1_scans)
+params {
+  input_dir = '/mnt/data/input'
+  license   = '/mnt/data/license.txt'
+  out_dir   = '/mnt/data/subjects'
 }
 
-/*
- * ░░ PROCESS ░░
- */
+workflow {
+  Channel
+    .fromPath("${params.input_dir}/*.nii")
+    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+    .map { file ->
+      // id = baseName bez přípony
+      def id = file.baseName
+      println "Found file: $file → id=$id"
+      tuple( file, id )
+    }
+    .set { t1_scans }
+
+  fastsurfer_seg(t1_scans)
+}
+
 process fastsurfer_seg {
+  tag "$id"
+  label 'gpujob'
+  container 'jezdip1/fastsurfer-cerit:latest'
 
-    label 'gpujob'
-    tag   "$id"
+  input:
+    tuple path(t1), val(id)
 
-    input:
-        tuple path(t1), val(id)
+  output:
+    // uložím celý adresář subjects/<id>
+    path "${params.out_dir}/${id}", emit: subject
 
-    /*
-     * Po skončení vytvoříme prázdný soubor `${id}.done`, aby Nextflow
-     * nemusel kopírovat celý výstupní adresář.
-     */
-    output:
-        path("${id}.done")
+  script:
+    // absolutní cesta k T1
+    def T1 = t1.toAbsolutePath()
+    // absolutní cesta k výstupnímu adresáři pro tento subjekt
+    def SD = "${params.out_dir}/${id}"
 
-    /*
-     * Spouštěcí skript
-     */
-    shell: '''
-        T1=${t1.toAbsolutePath()}
-        SD=${params.out_dir}
+    """
+    echo "Processing subject $id"
+    echo "  T1 = \$T1"
+    echo "  SD = \$SD"
 
-        echo "Processing $T1  →  $SD"
+    mkdir -p \$SD
 
-        /fastsurfer/run_fastsurfer.sh \
-            --fs_license ${params.license} \
-            --t1 "$T1" \
-            --sid ${id} \
-            --sd "$SD" \
-            --seg_only
-
-        touch ${id}.done
-    '''
+    /fastsurfer/run_fastsurfer.sh \\
+      --fs_license ${params.license} \\
+      --t1 "\$T1" \\
+      --sid "$id" \\
+      --sd "\$SD" \\
+      --seg_only \\
+      --parallel
+    """
 }
