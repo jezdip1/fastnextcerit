@@ -34,7 +34,6 @@ process fastsurfer_seg {
 
   script:
   """
-  #! /usr/bin/env bash
   set -euo pipefail
 
   T1=\$( realpath "$t1" )
