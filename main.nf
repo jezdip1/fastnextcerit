@@ -27,13 +27,18 @@ process fastsurfer_seg {
 
   script:
   """
-  t1_file="\$(pwd)/$t1"
-  echo "Processing subject $id with file \$t1_file"
+  T1=\$( realpath "$t1" )
+  SD=\$(pwd)/${id}_output
+  echo "▶ Subject: $id"
+  echo "   T1: \$T1"
+  echo "   OUTPUT DIR: \$SD"
+  mkdir -p "\$SD"
+
   /fastsurfer/run_fastsurfer.sh \\
     --fs_license ${params.license} \\
-    --t1 "\$t1_file" \\
-    --sid $id \\
-    --sd ${id}_output \\
+    --t1 "\$T1" \\
+    --sid "$id" \\
+    --sd "\$SD" \\
     --seg_only \\
     --parallel
   """
