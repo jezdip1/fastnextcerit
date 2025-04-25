@@ -1,39 +1,56 @@
 nextflow.enable.dsl=2
 
+//
+// Define an output folder on the PVC
+//
+params.out_dir = '/mnt/data/subjects'
+
 workflow {
+
   Channel
     .fromPath( "${params.input_dir}/*.nii" )
     .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-    .map { file ->
-      def id = file.baseName
-      println "Found file: $file  →  id=$id"
-      tuple(file, id)
-    }
+    .map { f -> tuple( f, f.baseName.replaceFirst(/\.nii$/, '') ) }
     .set { t1_scans }
 
-  fastsurfer_seg(t1_scans)
+  fastsurfer_seg( t1_scans )
 }
 
+
+//
+// This process runs one FastSurfer per subject
+//
 process fastsurfer_seg {
-  tag "$id"
+  tag   "$id"
   label 'gpujob'
 
   input:
     tuple path(t1), val(id)
 
   output:
-    path "${id}_output"
+    // we write everything under /mnt/data/subjects/$id, so Nextflow
+    // will capture that directory tree
+    path "${params.out_dir}/${id}"
 
   script:
   """
-  t1_file="\$(pwd)/$t1"
-  echo "Processing subject $id with file \$t1_file"
-  /fastsurfer/run_fastsurfer.sh \\
-    --fs_license ${params.license} \\
-    --t1 "\$t1_file" \\
-    --sid $id \\
-    --sd ${id}_output \\
-    --seg_only \\
+  #! /usr/bin/env bash
+  set -euo pipefail
+
+  T1=\$( realpath "$t1" )
+  SD="${params.out_dir}/${id}"
+  mkdir -p "\$SD"
+
+  echo "▶ Processing subject $id"
+  echo "  └─ T1   : \$T1"
+  echo "  └─ out  : \$SD"
+
+  exec /fastsurfer/run_fastsurfer.sh \
+    --fs_license ${params.license} \
+    --t1 "\$T1" \
+    --sid "$id" \
+    --sd "\$SD" \
+    --seg_only \
     --parallel
   """
 }
