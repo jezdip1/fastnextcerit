@@ -1,55 +1,57 @@
 nextflow.enable.dsl=2
 
 //
-// Define an output folder on the PVC
+// definice parametrů (všechny ostatní nastavíš v nextflow.config)
 //
-params.out_dir = '/mnt/data/subjects'
+params.license   = '/mnt/data/license.txt'
+params.input_dir = '/mnt/data/input'
+params.out_dir   = '/mnt/data/subjects'
 
 workflow {
 
   Channel
-    .fromPath( "${params.input_dir}/*.nii" )
+    .fromPath("${params.input_dir}/*.nii")
     .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-    .map { f -> tuple( f, f.baseName.replaceFirst(/\.nii$/, '') ) }
-    .set { t1_scans }
+    .map { file -> tuple( file, file.baseName ) }
+    .set { scans }
 
-  fastsurfer_seg( t1_scans )
+  fastsurfer_seg(scans)
 }
 
-
-//
-// This process runs one FastSurfer per subject
-//
 process fastsurfer_seg {
-  tag   "$id"
-  label 'gpujob'
+  /*
+   * Cpu-only verze, používá naši upravenou image se zabudovaným /bin/bash
+   */
+  executor  'k8s'
+  container 'jezdip1/fastsurfer-cerit:latest'
+  cpus      1
+  memory    '12 GB'
+
+  tag "$id"
 
   input:
     tuple path(t1), val(id)
 
-  output:
-    // we write everything under /mnt/data/subjects/$id, so Nextflow
-    // will capture that directory tree
-    path "${params.out_dir}/${id}"
-
+  /*
+   * t1_file je absolutní cesta ke vstupní NIfTI
+   * OUTDIR je adresář, kam FastSurfer vypíše výsledky pro všechny subjekty
+   */
   script:
   """
-  set -euo pipefail
+    T1_FILE=\$( realpath ${t1} )
+    OUTDIR=${params.out_dir}
 
-  T1=\$( realpath "$t1" )
-  SD="${params.out_dir}/${id}"
-  mkdir -p "\$SD"
+    echo "▶ Subject: $id"
+    echo "  T1 file: \$T1_FILE"
+    echo "  Output dir: \$OUTDIR"
 
-  echo "▶ Processing subject $id"
-  echo "  └─ T1   : \$T1"
-  echo "  └─ out  : \$SD"
+    mkdir -p "\$OUTDIR"
 
-  exec /fastsurfer/run_fastsurfer.sh \
-    --fs_license ${params.license} \
-    --t1 "\$T1" \
-    --sid "$id" \
-    --sd "\$SD" \
-    --seg_only \
-    --parallel
+    /fastsurfer/run_fastsurfer.sh \\
+      --fs_license ${params.license} \\
+      --t1 "\$T1_FILE" \\
+      --sid "$id" \\
+      --sd "\$OUTDIR" \\
+      --seg_only
   """
 }

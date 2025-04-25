@@ -1,39 +1,57 @@
 nextflow.enable.dsl=2
 
-workflow {
-  Channel
-    .fromPath( "${params.input_dir}/*.nii" )
-    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-    .map { file ->
-      def id = file.baseName
-      println "Found file: $file  →  id=$id"
-      tuple(file, id)
-    }
-    .set { t1_scans }
+//
+// definice parametrů (všechny ostatní nastavíš v nextflow.config)
+//
+params.license   = '/mnt/data/license.txt'
+params.input_dir = '/mnt/data/input'
+params.out_dir   = '/mnt/data/subjects'
 
-  fastsurfer_seg(t1_scans)
+workflow {
+
+  Channel
+    .fromPath("${params.input_dir}/*.nii")
+    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+    .map { file -> tuple( file, file.baseName ) }
+    .set { scans }
+
+  fastsurfer_seg(scans)
 }
 
 process fastsurfer_seg {
+  /*
+   * Cpu-only verze, používá naši upravenou image se zabudovaným /bin/bash
+   */
+  executor  'k8s'
+  container 'jezdip1/fastsurfer-cerit:latest'
+  cpus      1
+  memory    '12 GB'
+
   tag "$id"
-  label 'gpujob'
 
   input:
     tuple path(t1), val(id)
 
-  output:
-    path "${id}_output"
-
+  /*
+   * t1_file je absolutní cesta ke vstupní NIfTI
+   * OUTDIR je adresář, kam FastSurfer vypíše výsledky pro všechny subjekty
+   */
   script:
   """
-  t1_file="\$(pwd)/$t1"
-  echo "Processing subject $id with file \$t1_file"
-  /fastsurfer/run_fastsurfer.sh \\
-    --fs_license ${params.license} \\
-    --t1 "\$t1_file" \\
-    --sid $id \\
-    --sd ${id}_output \\
-    --seg_only \\
-    --parallel
+    T1_FILE=\$( realpath ${t1} )
+    OUTDIR=${params.out_dir}
+
+    echo "▶ Subject: $id"
+    echo "  T1 file: \$T1_FILE"
+    echo "  Output dir: \$OUTDIR"
+
+    mkdir -p "\$OUTDIR"
+
+    /fastsurfer/run_fastsurfer.sh \\
+      --fs_license ${params.license} \\
+      --t1 "\$T1_FILE" \\
+      --sid "$id" \\
+      --sd "\$OUTDIR" \\
+      --seg_only
   """
 }
