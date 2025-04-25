@@ -2,57 +2,45 @@
 nextflow.enable.dsl=2
 
 workflow {
+  // Seber všechny T1.nii
+  Channel
+    .fromPath("${params.input_dir}/*.nii")
+    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+    .map { f ->
+      def id = f.baseName.replaceFirst(/\.nii$/, '')
+      tuple(id, f)
+    }
+    .set { t1_scans }
 
-    /*
-     * 1) Najdi všechny .nii soubory
-     * 2) Vytvoř channel s tuple(id, path)
-     */
-    Channel
-      .fromPath("${params.input_dir}/*.nii")
-      .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
-      .map { f ->
-         def id = f.baseName.replaceFirst(/\.nii$/, '')
-         tuple(id, f)
-      }
-      .set { t1_scans }
-
-    /*
-     * Spusť proces fastsurfer_seg nad každým tuple(id, path)
-     */
-    fastsurfer_seg(t1_scans)
+  // Spusť segmentaci
+  fastsurfer_seg(t1_scans)
 }
 
 
 process fastsurfer_seg {
+  tag   "$id"
+  label 'gpu'              // použije GPU nastavení z configu
 
-    tag   "$id"
-    label 'gpu'                // aby procesy označené 'gpu' dostaly i GPU
+  input:
+    tuple val(id), path(t1)
 
-    /*
-     * Po ukončení procesu se vygenerovaný adresář
-     *   ${id}   (obsahující výsledky)
-     * zkopíruje do /mnt/data/subjects/${id}
-     */
-    publishDir "${params.out_dir}/${id}", mode: 'copy', overwrite: true
+  output:
+    // Výsledky zkopíruj do /mnt/data/subjects/$id
+    path(id), emit: result
 
-    input:
-      tuple val(id), path(t1)
+  publishDir "${params.out_dir}/${id}", mode: 'copy', overwrite: true
 
-    output:
-      // Aby proces Nextflowu věděl, že máme výstup:
-      path(id)
+  script:
+  """
+  echo "▶ Subject: ${id}"
+  echo "  T1 file: ${t1}"
+  echo "  License: ${params.license}"
 
-    script:
-    """
-    echo "▶ Subject: ${id}"
-    echo "  T1: ${t1}"
-    echo "  LICENSE: ${params.license}"
-
-    /fastsurfer/run_fastsurfer.sh \\
-      --fs_license ${params.license} \\
-      --t1 ${t1} \\
-      --sid ${id} \\
-      --sd ${id} \\
-      --seg_only
-    """
+  /fastsurfer/run_fastsurfer.sh \\
+    --fs_license ${params.license} \\
+    --t1 ${t1} \\
+    --sid ${id} \\
+    --sd ${id} \\
+    --seg_only
+  """
 }
