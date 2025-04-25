@@ -1,41 +1,39 @@
-#!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
 workflow {
   Channel
-    .fromPath("${params.input_dir}/*.nii")
+    .fromPath( "${params.input_dir}/*.nii" )
     .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
     .map { file ->
-      def id = file.baseName.replaceFirst(/\.nii$/, '')
-      tuple(id, file)
+      def id = file.baseName
+      println "Found file: $file  →  id=$id"
+      tuple(file, id)
     }
     .set { t1_scans }
 
   fastsurfer_seg(t1_scans)
 }
 
-
 process fastsurfer_seg {
-  tag   "$id"
-  label 'gpujob'      // prozatím CPU, ale kdybyste posílali na GPU...
+  tag "$id"
+  label 'gpujob'
 
   input:
-    tuple val(id), path(t1)
+    tuple path(t1), val(id)
 
   output:
-    path("${id}_output")
+    path "${id}_output"
 
   script:
   """
-    echo "▶ Processing subject $id"
-    echo "   T1 file = $t1"
-    echo "   License = ${params.license}"
-
-    /fastsurfer/run_fastsurfer.sh \\
-      --fs_license ${params.license} \\
-      --t1 $t1 \\
-      --sid $id \\
-      --sd ${id}_output \\
-      --seg_only
+  t1_file="\$(pwd)/$t1"
+  echo "Processing subject $id with file \$t1_file"
+  /fastsurfer/run_fastsurfer.sh \\
+    --fs_license ${params.license} \\
+    --t1 "\$t1_file" \\
+    --sid $id \\
+    --sd ${id}_output \\
+    --seg_only \\
+    --parallel
   """
 }
