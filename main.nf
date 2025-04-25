@@ -1,46 +1,45 @@
-nextflow.enable.dsl = 2
+nextflow.enable.dsl=2
 
+/*
+ * 1) Načteme všechny .nii soubory z adresáře
+ * 2) Pro každý předáme tuple([path, id])
+ */
 workflow {
   Channel
     .fromPath("${params.input_dir}/*.nii")
-    .ifEmpty { error "❌ No NIfTI files found in ${params.input_dir}" }
-    .map { f -> tuple(f, f.baseName) }
+    .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
+    .map { f -> tuple(f, f.baseName.replaceFirst(/\.nii$/, '')) }
     .set { scans }
 
   fastsurfer_seg(scans)
 }
 
+
 process fastsurfer_seg {
-  label   'gpujob'
-  cpus    1
-  memory  '12 GB'
+  tag   "$id"
+  label 'gpu'       // aby se pro GPU úlohy použila správná resource-spec
+
+  // Zapíšeme výstup z workDir do /mnt/data/subjects/<id>
+  publishDir "${params.out_dir}/${id}", mode: 'copy', overwrite: true
 
   input:
     tuple path(t1), val(id)
 
   output:
-    // Každý subject putuje do vlastní složky
-    path "${params.output_dir}/${id}"
+    // vrátíme adresář s výsledky zpět do workflow (pro publishDir není nutné přidávat další channel)
+    path("${id}_output")
 
   script:
   """
-//  # vynutíme absolutní cesty
-  T1=\$( realpath "${t1}" )
-  SD=${params.output_dir}/${id}
+    echo "▶ Subject: $id"
+    echo "  T1 file: $t1"
+    echo "  Output dir (inside work): ${id}_output"
 
-  echo "▶ Subject: ${id}"
-  echo "  T1 file: \$T1"
-  echo "  Output: \$SD"
-
-//  # Ujistíme se, že složka existuje
-  mkdir -p \$SD
-
-//  # Spustíme FastSurfer se správnými cestami
-  /fastsurfer/run_fastsurfer.sh \\
-    --fs_license ${params.license} \\
-    --t1 "\$T1" \\
-    --sid "${id}" \\
-    --sd "\$SD" \\
-    --seg_only
+    /fastsurfer/run_fastsurfer.sh \\
+      --fs_license ${params.license} \\
+      --t1 "$t1" \\
+      --sid "$id" \\
+      --sd ${id}_output \\
+      --seg_only
   """
 }
