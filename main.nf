@@ -24,7 +24,7 @@ process fastsurfer_seg {
 
   script:
   """
-  # vynutíme absolutní cesty
+//  # vynutíme absolutní cesty
   T1=\$( realpath "${t1}" )
   SD=${params.output_dir}/${id}
 
@@ -32,10 +32,10 @@ process fastsurfer_seg {
   echo "  T1 file: \$T1"
   echo "  Output: \$SD"
 
-  # Ujistíme se, že složka existuje
+//  # Ujistíme se, že složka existuje
   mkdir -p \$SD
 
-  # Spustíme FastSurfer se správnými cestami
+//  # Spustíme FastSurfer se správnými cestami
   /fastsurfer/run_fastsurfer.sh \\
     --fs_license ${params.license} \\
     --t1 "\$T1" \\
