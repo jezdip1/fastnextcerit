@@ -17,7 +17,7 @@ workflow {
 
 process fastsurfer_seg {
   tag   "$id"
-  label 'gpujob'    // zatím běží na CPU, ale necháme tu labelku
+  label 'gpujob'      // prozatím CPU, ale kdybyste posílali na GPU...
 
   input:
     tuple val(id), path(t1)
@@ -27,9 +27,9 @@ process fastsurfer_seg {
 
   script:
   """
-    echo "Processing subject $id"
-    echo "  T1 = $t1"
-    echo "  License = ${params.license}"
+    echo "▶ Processing subject $id"
+    echo "   T1 file = $t1"
+    echo "   License = ${params.license}"
 
     /fastsurfer/run_fastsurfer.sh \\
       --fs_license ${params.license} \\
