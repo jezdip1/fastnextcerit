@@ -19,11 +19,8 @@ process fastsurfer_seg {
   tag       "$id"
   label     'gpujob'
 
-  // ← REQUEST 1 GPU FOR THIS TASK (block‐style)
-  accelerator {
-    type  'nvidia.com/gpu'
-    count 1
-  }
+  accelerator 'nvidia.com/gpu', 1
+
   input:
     tuple path(t1), val(id)
 
