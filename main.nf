@@ -1,4 +1,4 @@
-#!/usr/bin/env nextflow
+// main.nf
 nextflow.enable.dsl=2
 
 workflow {
@@ -6,9 +6,7 @@ workflow {
     .fromPath( "${params.input_dir}/*.nii" )
     .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
     .map { file ->
-      def id = file.baseName
-      println "Found file: $file  →  id=$id"
-      tuple(file, id)
+      tuple(file, file.baseName)
     }
     .set { t1_scans }
 
@@ -16,10 +14,8 @@ workflow {
 }
 
 process fastsurfer_seg {
-  tag       "$id"
-  label     'gpujob'
-
-  accelerator 'nvidia.com/gpu', 1
+  tag   "$id"
+  label 'gpujob'
 
   input:
     tuple path(t1), val(id)
@@ -31,9 +27,6 @@ process fastsurfer_seg {
   """
   T1=\$( realpath "$t1" )
   SD=\$(pwd)/${id}_output
-  echo "▶ Subject: $id"
-  echo "   T1: \$T1"
-  echo "   OUTPUT DIR: \$SD"
   mkdir -p "\$SD"
 
   /fastsurfer/run_fastsurfer.sh \\
