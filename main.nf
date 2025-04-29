@@ -1,4 +1,4 @@
-// main.nf
+#!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
 workflow {
@@ -16,8 +16,11 @@ workflow {
 }
 
 process fastsurfer_seg {
-  tag "$id"
-  label 'gpujob'
+  tag       "$id"
+  label     'gpujob'
+
+  // ← REQUEST 1 GPU FOR THIS TASK
+  accelerator 'nvidia.com/gpu': 1
 
   input:
     tuple path(t1), val(id)
