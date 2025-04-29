@@ -6,7 +6,9 @@ workflow {
     .fromPath( "${params.input_dir}/*.nii" )
     .ifEmpty { error "No NIfTI files found in ${params.input_dir}" }
     .map { file ->
-      tuple(file, file.baseName)
+      def id = file.baseName
+      println "Found file: $file  →  id=$id"
+      tuple(file, id)
     }
     .set { t1_scans }
 
@@ -14,7 +16,7 @@ workflow {
 }
 
 process fastsurfer_seg {
-  tag   "$id"
+  tag "$id"
   label 'gpujob'
 
   input:
@@ -27,6 +29,9 @@ process fastsurfer_seg {
   """
   T1=\$( realpath "$t1" )
   SD=\$(pwd)/${id}_output
+  echo "▶ Subject: $id"
+  echo "   T1: \$T1"
+  echo "   OUTPUT DIR: \$SD"
   mkdir -p "\$SD"
 
   /fastsurfer/run_fastsurfer.sh \\
